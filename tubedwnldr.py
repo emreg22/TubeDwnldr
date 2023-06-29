@@ -25,9 +25,10 @@ def download_proxy_list(url):
     for row in table.find_all('tr'):
         columns = row.find_all('td')
         if columns:
-            ip = columns[0].get_text()
-            port = columns[1].get_text()
-            list_proxies.append(f"{ip}:{port}")
+            if ((columns[6].get_text()=="yes") & (columns[4].get_text()=="elite proxy")):
+                ip = columns[0].get_text()
+                port = columns[1].get_text()
+                list_proxies.append(f"{ip}:{port}")
     return list_proxies
 
 def set_proxy(proxy_list):
@@ -42,7 +43,7 @@ def measure_proxy_speed(server_info):
     start = time.time()
     try:
         r = requests.head(url, proxies=proxies, timeout=1)
-        r.raise_for_status()
+        r.raise_for_status()  # Raises stored HTTPError, if one occurred.
     except requests.RequestException:
         return 0  # Proxy failed
     latency = time.time() - start
@@ -68,14 +69,11 @@ def download_video_audio_without_server(url, path):
     }
 
     # First, extract information
-    signal.signal(signal.SIGALRM, handler)
-    signal.alarm(10)
     with youtube_dl.YoutubeDL(ydl_opts_video) as ydl:
         info_dict = ydl.extract_info(url, download=False)
         raw_title = info_dict.get('title', None)
         title = clean_title(raw_title)
         filename_video = ydl.prepare_filename(info_dict)
-    signal.alarm(0)
 
     with youtube_dl.YoutubeDL(ydl_opts_audio) as ydl:
         info_dict = ydl.extract_info(url, download=False)
@@ -108,16 +106,18 @@ def download_video_audio(server_info, url, path):
     ydl_opts_video = {
         'format': 'bestvideo',
         'nocheckcertificate': True,
-        'proxy': f'http://{server_info[0]}:{server_info[1]}',
+        'proxy': f'https://{server_info[0]}:{server_info[1]}',
+        'verbose': True
     }
 
     ydl_opts_audio = {
         'format': 'bestaudio',
         'nocheckcertificate': True,
-        'proxy': f'http://{server_info[0]}:{server_info[1]}',
+        'proxy': f'https://{server_info[0]}:{server_info[1]}',
+        'verbose': True
     }
 
-    # Extract information
+    # First, extract information
     signal.signal(signal.SIGALRM, handler)
     signal.alarm(10)
     with youtube_dl.YoutubeDL(ydl_opts_video) as ydl:
@@ -126,15 +126,15 @@ def download_video_audio(server_info, url, path):
         title = clean_title(raw_title)
         filename_video = ydl.prepare_filename(info_dict)
     signal.alarm(0)
-    time.sleep(2)
+    time.sleep(5)
     with youtube_dl.YoutubeDL(ydl_opts_audio) as ydl:
         info_dict = ydl.extract_info(url, download=False)
         filename_audio = ydl.prepare_filename(info_dict)
-    time.sleep(2)
+    time.sleep(5)
     video_format_and_extension = os.path.splitext(filename_video)[1][1:]
     audio_format_and_extension = os.path.splitext(filename_audio)[1][1:]
 
-    # Download with the cleaned title
+    # Then, download with the cleaned title
     ydl_opts_video.update({
         'outtmpl': os.path.join(path, f'{title}.video.%(ext)s'),
     })
@@ -164,25 +164,32 @@ def merge_audio_video(title, video_type, audio_type, path):
     os.remove(video_path)
     os.remove(audio_path)
 
-def process_video(youtube_url, proxy_list):
+def process_video(youtube_url, github_proxy_list_url):
+    x = 0;
+    proxy_list = download_proxy_list(github_proxy_list_url)
+    server_info = set_proxy(proxy_list)
     while True:
         try:
+            if (x%20== 0):
+                proxy_list = download_proxy_list(github_proxy_list_url)
+            if (x!=0):
+                server_info = set_proxy(proxy_list)
             latency = measure_proxy_speed(server_info)
             if (latency == 0):
                 raise Exception
             elif (latency >= 2):
                 raise Exception
 
-            listNames = download_video_audio(server_info, youtube_url, r'/Users/seg/Documents/tubedwnlds') #change path here
+            listNames = download_video_audio(server_info, youtube_url, r'/Users/seg/Documents/tubedwnlds')
             title = listNames[0]
             video_type = listNames[1]
             audio_type = listNames[2]
-            merge_audio_video(title, video_type, audio_type, r'/Users/seg/Documents/tubedwnlds')  # and change path here
+            merge_audio_video(title, video_type, audio_type, r'/Users/seg/Documents/tubedwnlds')
 
             break  # Break the loop if the download is successful
         except Exception as e:  # Catch the exception if an IP blockage is detected
-            server_info = set_proxy(proxy_list)
             print("Switching proxy and retrying...")
+            x = x+1
 
 def get_video_urls(channelID):
     videos = scrapetube.get_channel(channelID)
@@ -219,8 +226,7 @@ def main():
         if (proxy_string=="y" or proxy_string=="Y"):
             github_proxy_list_url = 'http://free-proxy-list.net/'
             for youtube_url in urls:
-                proxy_list = download_proxy_list(github_proxy_list_url)
-                process_video(youtube_url, proxy_list)
+                process_video(youtube_url, github_proxy_list_url)
             server_boolean = False
         elif (proxy_string=="n" or proxy_string=="N"):
             for youtube_url in urls:
