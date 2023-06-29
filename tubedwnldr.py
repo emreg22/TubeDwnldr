@@ -12,6 +12,7 @@ import imageio_ffmpeg as ffmpeg
 import signal
 from bs4 import BeautifulSoup
 import time
+import scrapetube
 
 def handler(signum, frame):
     raise Exception()
@@ -31,7 +32,6 @@ def download_proxy_list(url):
 
 def set_proxy(proxy_list):
     selected_proxy = random.choice(proxy_list)
-    print(selected_proxy)
     ip = (selected_proxy.split(':'))[0]
     port = (selected_proxy.split(':'))[1]
     return [ip, port]
@@ -167,9 +167,7 @@ def merge_audio_video(title, video_type, audio_type, path):
 def process_video(youtube_url, proxy_list):
     while True:
         try:
-            server_info = set_proxy(proxy_list)
             latency = measure_proxy_speed(server_info)
-            print(latency)
             if (latency == 0):
                 raise Exception
             elif (latency >= 2):
@@ -183,14 +181,38 @@ def process_video(youtube_url, proxy_list):
 
             break  # Break the loop if the download is successful
         except Exception as e:  # Catch the exception if an IP blockage is detected
-            print(f"Error: {str(e)}")
+            server_info = set_proxy(proxy_list)
             print("Switching proxy and retrying...")
 
+def get_video_urls(channelID):
+    videos = scrapetube.get_channel(channelID)
+    url_start = "https://www.youtube.com/watch?v="
+    list = []
+    for video in videos:
+        list.append(url_start + str(video['videoId']))
+    return list
+
+def get_playlist_urls(playlistID):
+    videos = scrapetube.get_playlist(playlistID)
+    url_start = "https://www.youtube.com/watch?v="
+    list = []
+    for video in videos:
+        list.append(url_start + str(video['videoId']))
+    return list
 
 def main():
-
-    urls_string = input("Enter the YouTube URL (SPACE BETWEEN DIFFERENT URL):")
-    urls = urls_string.split()
+    isChannel = input("Is this a channel download?")
+    if (isChannel == "y" or isChannel =="Y"):
+        channelID = input("What is the channel id?")
+        urls = get_video_urls(channelID)
+    else:
+        isPlaylist = input("Is this a playlist download?")
+        if (isPlaylist == "y" or isPlaylist =="Y"):
+            playlistId = input("What is the playlist id?")
+            urls = get_playlist_urls(playlistId)
+        else:
+            urls_string = input("Enter the YouTube URL (SPACE BETWEEN DIFFERENT URL):")
+            urls = urls_string.split()
     server_boolean = True
     while (server_boolean == True):
         proxy_string = input("Do you want to use proxy? (y/n)")

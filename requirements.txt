@@ -6,6 +6,8 @@ idna==3.4
 imageio-ffmpeg==0.4.8
 PySocks==1.7.1
 requests==2.31.0
+scrapetube==2.4.0
 soupsieve==2.4.1
+typing_extensions==4.7.0
 urllib3==2.0.3
 youtube-dl @ file:///Users/seg/youtube-dl
